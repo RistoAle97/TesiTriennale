@@ -1,0 +1,822 @@
+
+\appendix
+\myChapter{Codici}
+\section{Capitolo 3}
+\subsection{Launcher}
+\begin{lstlisting}[style=matlab, style=matlab2, style=matlab3]
+x=[0.00:0.01:10.23]';
+n=length(x);
+y=zeros(n, 1);
+y(1:n)=(x(1:n)-7).^2+1; %funzione da minimizzare
+
+popSize=30; %dimensione della popolazione
+pCrossover=0.75; %coefficiente di crossover
+pMutation=0.0333; %coefficiente di mutazione
+maxGen=500; %generazione massima
+
+%popolazione iniziale generata casualmente
+p=fix(x(n).*rand(popSize,1)*100)/100;
+
+%inizializzazione e calcolo fitness inziale
+fitness=zeros(popSize, 1);
+fitness(1:popSize)=(p(1:popSize)-7).^2+1;
+
+%# di generazione in cui il fitness non cambia
+cFit=0;
+
+[minFit, minIndex]=min(fitness);
+minPoint=p(minIndex);
+for i=1:maxGen
+    %stampa a video
+    fprintf("Generazione: %d, Individuo migliore: %d, 
+        Fitness minima: %d, Fitness media: %d\n", i, 
+        minPoint, minFit, mean(fitness));
+    
+    [z,fitness]=GAMatlab(pCrossover,pMutation,p,
+        fitness);
+    if min(fitness)>=minFit
+        cFit=cFit+1;
+    else
+        [minFit, minIndex]=min(fitness);
+        minPoint=z(minIndex);
+        cFit=0;
+    end
+    population=z;
+    if cFit==100
+        fprintf("Limite massimo raggiunto");
+        %potremmo usare un metodo tradizionale
+        break; 
+    end
+end
+\end{lstlisting}
+\subsection{Function principale ed operatori}
+\begin{lstlisting}[style=matlab, style=matlab2, style=matlab3]
+function [newPopulation,fitness]=GAMatlab(pCrossover,
+pMutation,p,fitness)
+%
+% [newPopulation,fitness]=GAMatlab(pCrossover,
+% pMutation,population,fitness)
+% Genera la nuova popolazione attraverso gli
+% operatori fondamentali dei GA
+n=length(population);
+chromosomes=zeros(n,10); 
+newChromosomes=zeros(n,10);
+newPopulation=zeros(n,1);
+k=1; %numero individui della nuova generazione
+[fitMin,minIndex]=min(fitness); %fitness minimo
+for i=1:n
+    %codifica
+    chromosomes(i,1:10)=encode(p(i));
+end
+while k<n+1
+    %selezione
+    [parent1,chromosomes2,j]=selection(chromosomes,
+        fitness);
+    fitness2=fitness([1:j-1 j+1:end]);
+    parent2=selection(chromosomes2,fitness2);
+   
+    %crossover
+    if (rand(1)<=pCrossover)
+        [son1,son2]=crossover(parent1,parent2);
+        
+        %mutazione
+        son1=mutation(pMutation, son1);
+        son2=mutation(pMutation, son2);
+        
+        %aggiunta all'insieme dei nuovi cromosomi
+        newChromosomes(k,1:10)=son1;
+        newChromosomes(k+1,1:10)=son2;
+        k=k+2;
+    end
+end
+for i=1:n
+    %decodifica
+    newPopulation(i)=decode(newChromosomes(i,1:10));
+end
+%calcolo del fitness della nuova popolazione
+fitness(1:n)=(newPopulation(1:n)-7).^2+1;
+
+%inserisco il miglior individuo della precedente
+%generazione al posto del peggiore di quella attuale
+[fitMax, maxIndex]=max(fitness);
+newPopulation(maxIndex)=p(minIndex);
+fitness(maxIndex)=fitMin;
+end
+
+%
+%Selezione a roulette
+%
+function [parent,chromosomes2,j]=
+    selection(chromosomes,fitness)
+sumFit=sum(fitness(1:length(fitness)));
+n=length(chromosomes);
+partSumFit=0; %somma delle parti
+i=1;
+randomPoint=rand(1)*sumFit; %numero casuale
+while partSumFit<randomPoint && i<n
+    partSumFit=partSumFit+fitness(i);
+    i=i+1;
+end
+parent=zeros(1, 10);
+parent=chromosomes(i, 1:10);
+if nargout>1
+    chromosomes2=chromosomes([1:i-1 i+1:end], 1:10);
+    j=i;
+end
+end
+
+%
+%Crossover a punto singolo
+%
+function [son1,son2]=crossover(parent1,parent2)
+son1=zeros(1,10);
+son2=zeros(1,10);
+crossPoint=randi(9, 1);
+son1(1:crossPoint)=parent1(1:crossPoint);
+son1(crossPoint+1:end)=parent2(crossPoint+1:end);
+son2(1:crossPoint)=parent2(1:crossPoint);
+son2(crossPoint+1:end)=parent1(crossPoint+1:end);
+end
+
+%
+%Mutazione
+%
+function mutChromosome=mutation(pMutation,chromosome)
+for i=1:length(chromosome)
+    if rand(1)<=pMutation
+        chromosome(i)=1-chromosome(i);
+    end
+end
+mutChromosome=chromosome;
+end
+
+%
+%Codifica
+%
+function chromosome=encode(individual)
+s=fix(individual*100);
+output=zeros(1,10);
+i=10;
+while s>0
+    output(1,i)=mod(s, 2);
+    s=fix(s/2);
+    i=i-1;
+end
+chromosome=output;
+end
+
+%
+%Decodifica
+%
+function individual=decode(chromosome)
+individual=0;
+for i=10:-1:1
+    individual=individual+chromosome(i)*(2^(10-i));
+end
+individual=individual*0.01;
+end
+\end{lstlisting}
+\section{Capitolo 4}
+\subsection{Classe Node}
+\begin{lstlisting}[style=Java]
+package geneticalgorithm;
+
+import java.util.LinkedList;
+import java.util.HashMap;
+import java.util.Iterator;
+
+public class Node {
+	private String name;
+	private LinkedList<Node> path; //cammino minimo dal nodo iniziale
+	private int d; //distanza dal nodo sorgente
+	private HashMap<Node, Integer> mapNodes; //nodi adiacenti e loro distanza dal nodo stesso
+	private int id; //id del nodo, necessario per la matrice di adiacenza
+	private static int lastId=0; //ultimo id nodo salvato
+	
+	public Node(String name) {
+		this.name=name;
+		path=new LinkedList<>();
+		d=Integer.MAX_VALUE;
+		mapNodes=new HashMap<>();
+		id=lastId++;
+	}
+	
+	/**
+	 * Connette il nodo ad un altro nodo n impostando al tempo stesso il peso dell'arco che li congiunge
+	 * @param n
+	 * @param distance
+	 * @param alreadyConnected
+	 */
+	public void connectTo(Node n, int distance, boolean alreadyConnected) {
+		mapNodes.put(n, distance);
+		if (!alreadyConnected) n.connectTo(this, distance, true);
+	}
+	
+	/**
+	 * Restituisce tutti i nodi adiacenti a tale nodo
+	 * @return una HashMap<Node, Integer> di nodi
+	 */
+	public HashMap<Node, Integer> getConnectedNodes() {
+		return mapNodes;
+	}
+	
+	/**
+	 * Restituisce il tragitto per arrivare al nodo, usato nell'algoritmo di Dijkstra
+	 * @return un iterator di nodi
+	 */
+	public Iterator<Node> getPath() {
+		return path.iterator();
+	}
+	
+	/**
+	 * Aggiunge un nodo al cammino per arrivare al nodo in question
+	 * @param itPath
+	 * @param n
+	 */
+	public void addToPath(Iterator<Node> itPath, Node n) {
+		path.removeAll(path);
+		while (itPath.hasNext()) {
+			Node m=itPath.next();
+			path.add(m);
+		}
+		path.add(n);
+		//path.add(this);
+	}
+	
+	/**
+	 * Imposta la distanza cumulativa dal nodo di partenza
+	 * @param d
+	 */
+	public void setDistance(int d) {
+		this.d=d;
+	}
+	
+	public int getDistance() {
+		return d;
+	}
+	
+	public String getName() {
+		return name;
+	}
+	
+	public int getId() {
+		return id;
+	}
+}
+\end{lstlisting}
+\subsection{Classe Chromosome}
+\begin{lstlisting}[style=Java]
+package geneticalgorithm;
+
+import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.Comparator;
+
+public class Chromosome {
+	private ArrayList<Node> genes; //lista dei geni
+	private int fitness=Integer.MAX_VALUE; //valore di fitness
+	
+	public Chromosome() {
+		genes=new ArrayList<>();
+	}
+	
+	/**
+	 * Imposta i geni del cromosoma a partire da un iteratore
+	 * @param genes
+	 */
+	public Chromosome(Iterator<Node> genes) {
+		this.genes=new ArrayList<>();
+		while (genes.hasNext()) {
+			this.genes.add(genes.next());
+		}
+	}
+	
+	/**
+	 * Restituisce i geni del cromosoma
+	 * @return un iterator di geni, ovvero i nodi del grafo
+	 */
+	public Iterator<Node> getGenes() {
+		return genes.iterator();
+	}
+	
+	public int getFitness() {
+		return fitness;
+	}
+	
+	public void setFitness(int fitness) {
+		this.fitness=fitness;
+	}
+	
+	public int getSize() {
+		return genes.size();
+	}
+	
+	/**
+	 * Scorrendo tutta la lista dei geni, controlla se il cromosoma corrisponde ad un altro creato in precedenza,
+	 * metodo utilizzato solamente nella costruzione della prima generazione
+	 * @param c
+	 * @return un valore booleano indicante se il cromosoma ha gli stessi geni di un altro cromosoma
+	 */
+	public boolean hasSamePath(Chromosome c) {
+		boolean b=true;
+		if (genes.size()==c.getSize()) {
+			Iterator<Node> itGenes1=c.getGenes();
+			Iterator<Node> itGenes2=getGenes();
+			while (itGenes1.hasNext()) {
+				Node n1=itGenes1.next();
+				Node n2=itGenes2.next();
+				if (!n1.equals(n2)) b=false;
+			}
+			//for(Node)
+		} else {
+			b=false;
+		}
+		return b;
+	}
+	
+	@Override
+	public String toString() {
+		String s="";
+		for (Node n: genes) {
+			s+=n.getName()+" ";
+		}
+		return s;
+	}
+	
+	public static Comparator<Chromosome> fitnessComparator = new Comparator<Chromosome>() {
+		@Override
+		public int compare(Chromosome c1, Chromosome c2) {
+			return (c1.getFitness()<c2.getFitness() ? -1 : (c1.getFitness()==c2.getFitness() ? 0 : 1));
+		}
+	};
+ }
+\end{lstlisting}
+\subsection{Classe Graph}
+\begin{lstlisting}[style=Java]
+package geneticalgorithm;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.HashMap;
+import java.util.Map.Entry;
+import java.util.Random;
+
+public class Graph {
+	private ArrayList<Node> nodes; //nodi del grafo
+	private Population population;
+	
+	public Graph() {
+		nodes=new ArrayList<>();
+	}
+	
+	/**
+	 * Aggiunge nodi al grafo
+	 * @param n
+	 * @throws Exception
+	 */
+	public void addNode(Node... n) throws Exception{
+		for (Node m: n) {
+			for (Node k: nodes) {
+				if (k.equals(m)) throw new Exception("Il nodo appartiene gi\u00E0 al grafo");
+			}
+			nodes.add(m);
+		}
+	}
+	
+	/**
+	 * Partendo da una lista di nodi, restituisce quello con valore di distanza minimo
+	 */
+	private Node minDistanceNode(ArrayList<Node> nvNodes) {
+		Node minNode=null;
+		int minDistance=Integer.MAX_VALUE;
+		for (Node n: nvNodes) {
+			int d=n.getDistance();
+			if (d<minDistance) {
+				minDistance=d;
+				minNode=n;
+			}
+		}
+		return minNode;
+	}
+	
+	/**
+	 * Imposta la distanza del nodo destinazione ad un nuovo valore se e solo se
+	 * quello precedente risulta maggiore della somma fra l'intero dato passato
+	 * come argomento e la distanza cumulativa del nodo destinazione stesso
+	 * @param destination
+	 * @param source
+	 * @param distance
+	 */
+	private void setDistance(Node destination, Node source, int distance) {
+		int sDistance=source.getDistance();
+		if (sDistance+distance< destination.getDistance()) {
+			destination.setDistance(sDistance+ distance);
+			Iterator<Node> path=source.getPath();
+			destination.addToPath(path, source);
+		}
+	}
+	
+	/**
+	 * Calcola il cammino minimo utilizzando l'algoritmo di Dijkstra a partire da un nodo
+	 * inziiale verso uno finale
+	 * @param source
+	 * @param destination
+	 * @return il cammino minimo da sorgente a destinazione
+	 * @throws Exception
+	 */
+	public Iterator<Node> DijkstraAlgorithm(Node source, Node destination) throws Exception{
+		if (!nodes.contains(source) || !nodes.contains(destination)) throw new Exception("Il nodo definito come iniziale o finale non appartiene al grafo");
+		
+		//Passo 1 e 2
+		source.setDistance(0);
+		ArrayList<Node> vNodes=new ArrayList<>();
+		ArrayList<Node> nvNodes=new ArrayList<>();
+		nvNodes.add(source);
+		
+		while (nvNodes.size()!=0) {
+			Node n=minDistanceNode(nvNodes);
+			nvNodes.remove(n);
+			if (n.equals(destination)) break; //se siamo giunti a destinazione terminiamo, Passo 5
+			
+			HashMap<Node, Integer> map=n.getConnectedNodes();
+			
+			//Passo 3
+			for (Entry<Node, Integer> e: map.entrySet()) {
+				Node m=e.getKey();
+				if (vNodes.contains(m)) continue; //necessaria per grafi non orientati
+				int d=e.getValue().intValue();
+				//if (!nvNodes.contains(m)) {
+					setDistance(m, n, d);
+					nvNodes.add(m);
+				//}
+			}
+			
+			//Passo 4
+			vNodes.add(n);
+		}
+		return destination.getPath();
+	}
+	
+	/**
+	 * Crea un cammino casuale da sorgente a destinazione
+	 * @param source
+	 * @param destination
+	 * @return un iteratore di nodi contenente il cammino casuale
+	 */
+	public Iterator<Node> createRandomPath(Node source, Node destination) {
+		boolean dest=false;
+		//ArrayList<Node> nvNodes=nodes.forEach();
+		ArrayList<Node> path=new ArrayList<>();
+		path.add(source);
+		ArrayList<Node> vNodes=new ArrayList<>();
+		vNodes.add(source);
+		while (dest==false) {
+			Node n=path.get(path.size()-1);
+			HashMap<Node, Integer> map=n.getConnectedNodes();
+			ArrayList<Node> connNodes=new ArrayList<>();
+			map.entrySet().forEach(e -> connNodes.add(e.getKey()));
+			connNodes.removeIf(k -> vNodes.contains(k));
+			if (connNodes.isEmpty()) {
+				path.remove(n);
+				continue;
+			}
+			Random r=new Random();
+			int randomIndex= r.nextInt(connNodes.size());
+			Node m=connNodes.get(randomIndex);
+			if (m.equals(destination)) dest=true;
+			path.add(m);
+			vNodes.add(m);
+		}
+		return path.iterator();
+	}
+	
+	/**
+	 * Calcola il cammino minimo da sorgente a destinazione usando il GA
+	 * @param source
+	 * @param destination
+	 * @param pSize
+	 * @param maxGen
+	 * @param pCrossover
+	 * @param pMutation
+	 * @return il cromosoma migliore dell'ultima generazione
+	 * @throws Exception
+	 */
+	public Chromosome ShortestPathGA(Node source, Node destination, int pSize, int maxGen, double pCrossover, double pMutation) throws Exception{
+		if (nodes.size()==0) throw new Exception("Non sono stati inseriti nodi nel grafo");
+		
+		//Creo la popolazione e costruisco la matrice di adiacenza
+		population=new Population(nodes.size(), pSize, this);
+		population.buildMatrixDist(nodes.iterator());
+		
+		int j=0;
+		while (j<pSize) {
+			//Creo un cromosoma assegnandoli un percorso (geni) casuale fra sorgente e destinazione
+			Chromosome c=new Chromosome(createRandomPath (source, destination));
+			Iterator<Chromosome> itC=population.getChromosomes();
+			
+			//Controllo se tale percorso esiste già
+			boolean hasSamePath=false;
+			while (itC.hasNext()) {
+				if (itC.next(). hasSamePath(c)) {
+					hasSamePath=true;
+					break;
+				}
+			}
+			if (!hasSamePath) {
+				//Nel caso il cromosoma fosse unico (percorso differente dagli altri), lo aggiungo alla popolazione
+				population.addChromosome(c);
+				j++;
+			}
+		}
+		
+		//Eseguo il GA per un numero massimo di generazioni
+		for (int i=0;i<maxGen; i++) {
+			population.pathGA(pCrossover, pMutation);
+		}
+		return population.getFittest(); //Restituzione del miglior cromosoma
+	}
+}
+\end{lstlisting}
+\subsection{Classe Population}
+\begin{lstlisting}[style=Java]
+package geneticalgorithm;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.HashMap;
+import java.util.Map.Entry;
+import java.util.Random;
+import java.util.stream.Collectors;
+
+public class Population {
+	private ArrayList<Chromosome> chromosomes;
+	private int bestFitness=Integer.MAX_VALUE; //miglior valore di fitness
+	private Chromosome best=null; //miglior individuo
+	private int[][] matDist; //matrice delle distanze
+	private int pSize; //dimensione popolazione
+	private Graph graph;
+	private int nCrossover=0; //numero di crossover
+	private int nMutation=0; //numero di mutazioni
+	
+	public Population(int size, int pSize, Graph graph) {
+		chromosomes=new ArrayList<>();
+		matDist=new int[size][size];
+		for (int i=0;i<matDist.length;i++) {
+			for (int j=0;j<matDist.length;j++) {
+				matDist[i][j]=100;
+			}
+		}
+		this.pSize=pSize;
+		this.graph=graph;
+	}
+	
+	/**
+	 * Aggiunge un cromosoma alla popolazione
+	 * @param c
+	 */
+	public void addChromosome(Chromosome c) {
+		chromosomes.add(c);
+		setFitness(c);
+	}
+	
+	/**
+	 * Imposta il valore di fitness di un cromosoma
+	 * @param c
+	 */
+	private void setFitness(Chromosome c) {
+		int fitness=0;
+		Iterator<Node> itNodes=c.getGenes();
+		int idPrev=itNodes.next().getId();
+		while (itNodes.hasNext()) {
+			int idNext=itNodes.next().getId();
+			fitness+=matDist[idPrev][idNext];
+			idPrev=idNext;
+		}
+		c.setFitness(fitness);
+	}
+	
+	/**
+	 * Restituisce il cromosoma con il miglior valore di fitness
+	 * @return il cromosoma migliore
+	 */
+	public Chromosome getFittest() {
+		return best;
+	}
+	
+	/**
+	 * Costruisce la matrice di adiacenza
+	 * @param itNodes
+	 */
+	public void buildMatrixDist(Iterator<Node> itNodes) {
+		while (itNodes.hasNext()) {
+			Node n=itNodes.next();
+			HashMap<Node, Integer> map=n.getConnectedNodes();
+			int idN=n.getId();
+			for (Entry<Node, Integer> e: map.entrySet()) {
+				Node m=e.getKey();
+				int dist= e.getValue().intValue();
+				int idM=m.getId();
+				if (matDist[idN][idM]==100) {
+					matDist[idN][idM]= dist;
+					matDist[idM][idN]= dist;
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Operatore di selezione, applica la sua variante a torneo
+	 * @return due cromosomi genitori
+	 */
+	private ArrayList<Chromosome> selection() {
+		//Dimensione del torneo
+		int tSize=5;
+		
+		//Lista temporanea dei cromosomi
+		ArrayList<Chromosome> tChroms=new ArrayList<>();
+		
+		chromosomes.forEach(c -> tChroms.add(c));
+		Random r=new Random();
+		
+		//Cromosomi genitori
+		ArrayList<Chromosome> parents=new ArrayList<>();
+		
+		while (parents.size()<2) {
+			//Cromosomi partecipanti al torneo
+			ArrayList<Chromosome> selChroms=new ArrayList<>();
+			while (selChroms.size()<tSize) {
+				int rInt= r.nextInt(tChroms.size());
+				Chromosome c=tChroms.get(rInt);
+				if (!selChroms.contains(c)) {
+					selChroms.add(c);
+				}
+			}
+			
+			Collections.sort(selChroms, Chromosome.fitnessComparator);
+			
+			//Scelta del vincitore del torneo
+			double p=0.75;
+			double[] partialSums=new double[tSize];
+			double sumP=0;
+			for (int i=0;i<tSize;i++) {
+				sumP+=p*Math.pow((1-p), i);
+				partialSums[i]=sumP;
+			}
+			double rDouble=r.nextDouble()*sumP;
+			int i=0;
+			while (partialSums[i]<rDouble) {
+				i++;
+			}
+			parents.add(selChroms.get(i));
+			tChroms.remove(i);
+		}
+		return parents;
+	}
+	
+	/**
+	 * Operatore di crossover, nella sua variante a punto singolo
+	 * @param parents
+	 * @return una lista contenente i geni dei figli
+	 */
+	private ArrayList<ArrayList<Node>> crossover(ArrayList<Chromosome> parents) {
+		//Estrazione dei due genitori dalla lista
+		Chromosome parent1=parents.get(0);
+		Chromosome parent2=parents.get(1);
+		
+		ArrayList<Node> son1=new ArrayList<>();
+		ArrayList<Node> son2=new ArrayList<>();
+		
+		//Ottenimento dei geni dei due genitori
+		Iterator<Node> itP1=parent1.getGenes();
+		Iterator<Node> itP2=parent2.getGenes();
+		
+		//Calcolo della dimensione minima
+		int minSize=parent1.getSize();
+		if (parent2.getSize()<minSize) minSize=parent2.getSize();
+		
+		//Generazione del punto di crossover
+		Random r=new Random();
+		int rIndex=r.nextInt(minSize-1);
+		
+		//Crossover a punto singolo
+		int i=0;
+		while (i<rIndex) {
+			son1.add(itP1.next());
+			son2.add(itP2.next());
+			i++;
+		}
+		while (itP1.hasNext()) {
+			son2.add(itP1.next());
+		}
+		while (itP2.hasNext()) {
+			son1.add(itP2.next());
+		}
+		
+		//Restituzione dei due figli
+		ArrayList<ArrayList<Node>> sons=new ArrayList<>();
+		sons.add(son1);
+		sons.add(son2);
+		return sons;
+	}
+	
+	/**
+	 * Operatore di mutazione
+	 * @param individuals
+	 * @param pMutation
+	 */
+	private void mutation(ArrayList<ArrayList<Node>> individuals, double pMutation) {
+		Random r=new Random();
+		for (int i=0;i<individuals.size();i++) {
+			ArrayList<Node> son=individuals.get(i);
+			for (int j=0;j<son.size()-1;j++) {
+				double rDouble=r.nextDouble();
+				
+				//Se la mutazione avviene, trovo un nuovo percorso dal nodo scelto verso la destinazione
+				if (rDouble<pMutation) {
+					nMutation++;
+					Node n=son.get(j);
+					Iterator<Node> itN= graph. createRandomPath(n, son.get (son.size()-1));
+					
+					//Eliminimo gli elementi successivi al nodo che ha subito la mutazione
+					for (int k= son.size()-1;k>= j;k--) {
+						son.remove(k);
+					}
+					
+					//Aggiungo il percorso
+					while (itN.hasNext()) son.add(itN.next());
+					break;
+				}
+			}
+			
+			//Elimino i nodi dupilcati
+			son=(ArrayList<Node>)son.stream() .distinct().collect(Collectors. toList());
+		}
+	}
+	
+	/**
+	 * Creazione della nuova generazione attraverso i tre operatori fondamentali
+	 * @param pCrossover
+	 * @param pMutation
+	 */
+	public void pathGA(double pCrossover, double pMutation) {
+		ArrayList<Chromosome> newGeneration=new ArrayList<>();
+		while (newGeneration.size()<pSize) {
+			//Selezione
+			ArrayList<Chromosome> parents=selection();
+			
+			//Generazione di un numero casuale fra 0 ed 1
+			Random r=new Random();
+			double rDouble=r.nextDouble();
+			
+			//Crossover
+			if (rDouble<pCrossover) {
+				nCrossover++;
+				ArrayList<ArrayList<Node>> sons=crossover(parents);
+				
+				//Mutazione
+				mutation(sons, pMutation);
+				
+				//Aggiunta dei nuovi cromosomi alla popolazione
+				newGeneration.add(new Chromosome(sons. get(0).iterator()));
+				newGeneration.add(new Chromosome(sons. get(1).iterator()));
+				
+			}
+		}
+		newGeneration.forEach(c -> setFitness(c));
+		Collections.sort(newGeneration, Chromosome.fitnessComparator);
+		int i=newGeneration.size()-1;
+		while (newGeneration.size()>pSize) {
+			newGeneration.remove(i);
+			i--;
+		}
+		chromosomes=newGeneration;
+		best=chromosomes.get(0);
+		bestFitness=best.getFitness();
+	}
+	
+	@Override
+	public String toString() {
+		String s="";
+		for (Chromosome c: chromosomes) {
+			s+=c.toString()+" fitness: "+c.getFitness()+"\n";
+		}
+		return s;
+	}
+	
+	public int getBestFitness() {
+		return bestFitness;
+	}
+	
+	public String getStats() {
+		String s="Numero di crossover: "+nCrossover+", numero di mutazioni: "+nMutation;
+		return s;
+	}
+	
+	public Iterator<Chromosome> getChromosomes() {
+		return chromosomes.iterator();
+	}
+}
+\end{lstlisting}
+%\section{Capitolo 5}
+\newpage
